@@ -1,0 +1,5 @@
+# Keep the Unix launcher LF even when checked out on Windows, so the Linux
+# build runner can execute it. The Windows .bat keeps CRLF.
+* text=auto eol=lf
+*.bat text eol=crlf
+*.jar binary
