@@ -1,0 +1,11 @@
+The offline speech model is downloaded into this folder by the GitHub Actions
+build (see .github/workflows/build.yml). It is ~40 MB, which is why it is not
+committed here.
+
+Building locally in Android Studio instead? Run this once from the project root:
+
+  curl -fSL -o model.zip https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip
+  unzip -q model.zip
+  mv vosk-model-small-en-us-0.15/* app/src/main/assets/model-en-us/
+  date +%s > app/src/main/assets/model-en-us/uuid
+  rm -rf model.zip vosk-model-small-en-us-0.15

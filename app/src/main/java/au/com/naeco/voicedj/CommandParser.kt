@@ -1,0 +1,142 @@
+package au.com.naeco.voicedj
+
+/**
+ * Turns a spoken phrase into an intent. Everything here runs on text that
+ * [Matcher.norm] has already flattened, so apostrophes are gone by the time
+ * the patterns see it ("what's" arrives as "what s").
+ */
+object CommandParser {
+
+    enum class Kind {
+        NOOP, PLAY, NEXT, PREVIOUS, PAUSE, RESUME, WHATS_PLAYING,
+        SHUFFLE_ON, SHUFFLE_OFF, REPEAT, VOLUME, VOLUME_DELTA
+    }
+
+    enum class TargetType { PLAYLIST, ALBUM, ARTIST, TRACK }
+
+    data class Command(
+        val kind: Kind,
+        val query: String = "",
+        val type: TargetType? = null,
+        val artist: String? = null,
+        val shuffle: Boolean = false,
+        val device: String? = null,
+        val value: Int = 0,
+        val delta: Int = 0,
+        val repeatMode: String = "off"
+    )
+
+    private val NUMWORDS = mapOf(
+        "zero" to 0, "one" to 1, "two" to 2, "three" to 3, "four" to 4, "five" to 5,
+        "six" to 6, "seven" to 7, "eight" to 8, "nine" to 9, "ten" to 10,
+        "twenty" to 20, "thirty" to 30, "forty" to 40, "fifty" to 50, "sixty" to 60,
+        "seventy" to 70, "eighty" to 80, "ninety" to 90, "hundred" to 100,
+        "half" to 50, "full" to 100, "max" to 100
+    )
+
+    fun parse(raw: String): Command {
+        var t = Matcher.norm(raw)
+        if (t.isEmpty()) return Command(Kind.NOOP)
+
+        t = t.replace(Regex("^(ok|okay|hey|yo|please|can you|could you|i want you to|i want to)\\s+"), "")
+            .replace(Regex("\\b(on|in|from|with|using)\\s+spotify\\b"), "")
+            .replace(Regex("\\bfor me\\b"), "")
+            .replace(Regex("\\s+"), " ").trim()
+
+        // ---- transport -------------------------------------------------
+        if (Regex("^(next|skip|next (track|song)|skip (this|it|track|song))\\b").containsMatchIn(t))
+            return Command(Kind.NEXT)
+        if (Regex("^(back|previous|go back|last (track|song)|previous (track|song))\\b").containsMatchIn(t))
+            return Command(Kind.PREVIOUS)
+        if (Regex("^(pause|stop|shut up|quiet|hold on)\\b").containsMatchIn(t))
+            return Command(Kind.PAUSE)
+        if (Regex("^(resume|unpause|continue|keep going|carry on|play)$").matches(t))
+            return Command(Kind.RESUME)
+        if (Regex("^(what ?s|whats|what is|who ?s|whos|who is)\\s+(playing|this|song|on|it)\\b").containsMatchIn(t) ||
+            Regex("^what song is (this|playing)\\b").containsMatchIn(t))
+            return Command(Kind.WHATS_PLAYING)
+        if (Regex("^shuffle$").matches(t) || Regex("^shuffle (on|it|this)$").matches(t))
+            return Command(Kind.SHUFFLE_ON)
+        if (Regex("^(shuffle off|stop shuffling|no shuffle)$").matches(t))
+            return Command(Kind.SHUFFLE_OFF)
+        if (Regex("^(repeat|loop)( this| it| track| song)?$").matches(t))
+            return Command(Kind.REPEAT, repeatMode = "track")
+        if (Regex("^(repeat off|stop repeating|no repeat)$").matches(t))
+            return Command(Kind.REPEAT, repeatMode = "off")
+        if (Regex("^(louder|turn it up|volume up|crank it|pump it)\\b").containsMatchIn(t))
+            return Command(Kind.VOLUME_DELTA, delta = 15)
+        if (Regex("^(quieter|turn it down|volume down|softer)\\b").containsMatchIn(t))
+            return Command(Kind.VOLUME_DELTA, delta = -15)
+
+        Regex("^(?:set )?volume(?: to)? (.+)$").find(t)?.let { m ->
+            val w = m.groupValues[1].trim()
+            val n = w.toIntOrNull() ?: NUMWORDS[w]
+            if (n != null) return Command(Kind.VOLUME, value = n.coerceIn(0, 100))
+        }
+        Regex("^turn(?: the)? volume(?: to)? (.+)$").find(t)?.let { m ->
+            val w = m.groupValues[1].trim()
+            val n = w.toIntOrNull() ?: NUMWORDS[w]
+            if (n != null) return Command(Kind.VOLUME, value = n.coerceIn(0, 100))
+        }
+
+        // ---- "... on the kitchen speaker" -------------------------------
+        var device: String? = null
+        Regex("^(.*?)\\s+(?:on|through|to)(?: (?:the|my))? ([a-z0-9 ]+?(?:speaker|tv|kitchen|lounge|shed|office|desktop|laptop|phone|car|pc|mac))$")
+            .find(t)?.let { m ->
+                t = m.groupValues[1].trim()
+                device = m.groupValues[2].trim()
+            }
+
+        // ---- shuffle baked into the phrase ------------------------------
+        var shuffle = false
+        if (Regex("^shuffle\\b").containsMatchIn(t)) {
+            shuffle = true
+            t = t.replace(Regex("^shuffle\\b"), "").trim()
+        }
+        if (Regex("\\bon shuffle$").containsMatchIn(t) || Regex("\\bshuffled$").containsMatchIn(t)) {
+            shuffle = true
+            t = t.replace(Regex("\\b(on shuffle|shuffled)$"), "").trim()
+        }
+
+        // ---- explicit type ----------------------------------------------
+        var type: TargetType? = null
+        val explicit = Regex("^(?:play\\s+)?(playlist|album|artist|song|track)\\s+(.+)$").find(t)
+        if (explicit != null) {
+            type = when (explicit.groupValues[1]) {
+                "playlist" -> TargetType.PLAYLIST
+                "album" -> TargetType.ALBUM
+                "artist" -> TargetType.ARTIST
+                else -> TargetType.TRACK
+            }
+            t = explicit.groupValues[2]
+        } else {
+            t = t.replace(Regex("^play\\s+"), "").trim()
+            Regex("^(?:my |the )?(.+?)\\s+(playlist|album|mix)$").find(t)?.let { m ->
+                type = if (m.groupValues[2] == "album") TargetType.ALBUM else TargetType.PLAYLIST
+                t = m.groupValues[1]
+            }
+        }
+
+        t = t.replace(Regex("^(my|the)\\s+"), "").trim()
+        if (t.isEmpty()) return if (shuffle) Command(Kind.SHUFFLE_ON) else Command(Kind.NOOP)
+
+        // ---- "<song> by <artist>" ---------------------------------------
+        var byArtist: String? = null
+        if (type != TargetType.PLAYLIST) {
+            Regex("^(.+?)\\s+by\\s+(.+)$").find(t)?.let { m ->
+                byArtist = m.groupValues[2].trim()
+                t = m.groupValues[1].trim()
+                if (type == null) type = TargetType.TRACK
+            }
+        }
+
+        return Command(
+            kind = Kind.PLAY,
+            query = t,
+            type = type,
+            artist = byArtist,
+            shuffle = shuffle,
+            device = device
+        )
+    }
+}

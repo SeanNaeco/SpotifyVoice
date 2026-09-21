@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">VoiceDJ</string>
+
+    <string name="consent_title">Before you start</string>
+    <string name="consent_intro">VoiceDJ can listen continuously for a wake word so you can control Spotify without touching your phone. That means the microphone stays open. Here is exactly what happens, so you can decide.</string>
+
+    <string name="consent_p1_h">The microphone stays open while listening is on</string>
+    <string name="consent_p1_b">Audio is processed on this device by a wake-word engine that only ever looks for your chosen wake word. Nothing is recorded to a file, and nothing leaves the phone during this stage.</string>
+
+    <string name="consent_p2_h">Only after the wake word is heard does anything get sent</string>
+    <string name="consent_p2_b">Your next few seconds of speech are passed to the speech recogniser on your phone to be turned into text. Depending on your device settings, Android may process this on-device or send it to Google, exactly as it does for any other voice input. VoiceDJ never stores or transmits the audio itself.</string>
+
+    <string name="consent_p3_h">You can see it and stop it at any time</string>
+    <string name="consent_p3_b">While listening is on there is a permanent notification you cannot swipe away, with a Stop button. Listening never starts on its own — not at boot, not in the background. It starts only when someone taps Start in the app.</string>
+
+    <string name="consent_p4_h">Other people around you have not agreed to this</string>
+    <string name="consent_p4_b">An open microphone may pick up other people in the room. Consider telling them, and avoid leaving listening on in private conversations or meetings.</string>
+
+    <string name="consent_check_understand">I understand the microphone stays open while listening is on</string>
+    <string name="consent_check_responsible">I am responsible for how this is used around other people</string>
+    <string name="consent_accept">Accept and continue</string>
+    <string name="consent_decline">No thanks — tap-to-talk only</string>
+    <string name="consent_footer">You can withdraw this at any time in Settings, which stops listening immediately. This choice is stored on this device only.</string>
+
+    <string name="notif_channel">Listening</string>
+    <string name="notif_title">VoiceDJ is listening</string>
+    <string name="notif_stop">Stop</string>
+
+    <string name="perm_mic_rationale">VoiceDJ needs microphone access to hear the wake word. Without it, only the on-screen controls work.</string>
+</resources>

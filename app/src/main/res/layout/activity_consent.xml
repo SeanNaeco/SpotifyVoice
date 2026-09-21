@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="@color/bg" android:fillViewport="true">
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" android:padding="22dp">
+
+        <ImageView android:layout_width="44dp" android:layout_height="44dp"
+            android:src="@drawable/ic_mic" android:layout_marginBottom="14dp"
+            android:contentDescription="@string/app_name"/>
+
+        <TextView android:id="@+id/title" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:text="@string/consent_title"
+            android:textSize="26sp" android:textStyle="bold" android:textColor="@color/text"/>
+
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="@string/consent_intro" android:textSize="15sp"
+            android:textColor="@color/muted" android:lineSpacingMultiplier="1.3"
+            android:layout_marginTop="10dp"/>
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:background="@drawable/bg_card"
+            android:padding="16dp" android:layout_marginTop="20dp">
+
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="@string/consent_p1_h" android:textSize="15sp"
+                android:textStyle="bold" android:textColor="@color/text"/>
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="@string/consent_p1_b" android:textSize="14sp"
+                android:textColor="@color/muted" android:lineSpacingMultiplier="1.3"
+                android:layout_marginTop="4dp"/>
+
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="@string/consent_p2_h" android:textSize="15sp"
+                android:textStyle="bold" android:textColor="@color/text"
+                android:layout_marginTop="16dp"/>
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="@string/consent_p2_b" android:textSize="14sp"
+                android:textColor="@color/muted" android:lineSpacingMultiplier="1.3"
+                android:layout_marginTop="4dp"/>
+
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="@string/consent_p3_h" android:textSize="15sp"
+                android:textStyle="bold" android:textColor="@color/text"
+                android:layout_marginTop="16dp"/>
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="@string/consent_p3_b" android:textSize="14sp"
+                android:textColor="@color/muted" android:lineSpacingMultiplier="1.3"
+                android:layout_marginTop="4dp"/>
+
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="@string/consent_p4_h" android:textSize="15sp"
+                android:textStyle="bold" android:textColor="@color/warn"
+                android:layout_marginTop="16dp"/>
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="@string/consent_p4_b" android:textSize="14sp"
+                android:textColor="@color/muted" android:lineSpacingMultiplier="1.3"
+                android:layout_marginTop="4dp"/>
+        </LinearLayout>
+
+        <CheckBox android:id="@+id/checkUnderstand" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:text="@string/consent_check_understand"
+            android:textColor="@color/text" android:textSize="14sp"
+            android:layout_marginTop="18dp" android:paddingStart="8dp" android:paddingEnd="0dp"/>
+
+        <CheckBox android:id="@+id/checkResponsible" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:text="@string/consent_check_responsible"
+            android:textColor="@color/text" android:textSize="14sp"
+            android:layout_marginTop="6dp" android:paddingStart="8dp" android:paddingEnd="0dp"/>
+
+        <Button android:id="@+id/btnAccept" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:text="@string/consent_accept"
+            android:enabled="false" android:layout_marginTop="20dp"/>
+
+        <Button android:id="@+id/btnDecline" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:text="@string/consent_decline"
+            style="?android:attr/borderlessButtonStyle"
+            android:textColor="@color/muted" android:layout_marginTop="4dp"/>
+
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="@string/consent_footer" android:textSize="12.5sp"
+            android:textColor="@color/muted" android:layout_marginTop="12dp"
+            android:lineSpacingMultiplier="1.3" android:gravity="center"/>
+    </LinearLayout>
+</ScrollView>
