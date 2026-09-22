@@ -17,16 +17,24 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      # No setup-android action here on purpose. The runner image already ships
+      # the Android SDK (API 35, build-tools 35.0.0) at $ANDROID_HOME, and the
+      # action that used to be here — android-actions/setup-android@v3 — is a
+      # Node 20 action that fails on the current runners.
+      - name: Confirm the Android SDK is present
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls "$ANDROID_HOME/platforms"
+          ls "$ANDROID_HOME/build-tools"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
 
       # The offline speech model is ~40 MB, so it is fetched here rather than
       # committed to the repo. It ends up inside the APK, so the finished app
@@ -59,6 +67,7 @@ jobs:
         run: |
           mkdir -p out
           cp app/build/outputs/apk/debug/app-debug.apk "out/VoiceDJ-${GITHUB_RUN_NUMBER}.apk"
+          ls -la out
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -75,7 +84,6 @@ jobs:
           tag_name: build-${{ github.run_number }}
           name: VoiceDJ build ${{ github.run_number }}
           files: out/*.apk
-          generate_release_notes: false
           body: |
             Debug build of VoiceDJ.
 
