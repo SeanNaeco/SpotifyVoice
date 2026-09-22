@@ -53,6 +53,17 @@ data class Library(
     }
 }
 
+data class Device(
+    val id: String,
+    val name: String,
+    val type: String,          // "Computer", "Smartphone", "Speaker", "TV", "CastAudio"...
+    val isActive: Boolean,
+    val isRestricted: Boolean
+) {
+    /** True for the handset this app is running on, near enough. */
+    val isPhone: Boolean get() = type.equals("Smartphone", ignoreCase = true)
+}
+
 /** What a resolved command turned into, ready to hand to the player. */
 data class Resolution(val label: String, val body: JSONObject)
 
@@ -186,13 +197,41 @@ object SpotifyClient {
 
     // ---- devices --------------------------------------------------------
 
-    suspend fun devices(): List<Pair<String, String>> {
+    suspend fun devices(): List<Device> {
         val j = getJson("/me/player/devices") ?: return emptyList()
         val arr = j.optJSONArray("devices") ?: return emptyList()
         return (0 until arr.length()).mapNotNull {
             val d = arr.optJSONObject(it) ?: return@mapNotNull null
-            d.optString("id") to d.optString("name")
+            val id = d.optString("id")
+            if (id.isEmpty()) return@mapNotNull null
+            Device(
+                id = id,
+                name = d.optString("name"),
+                type = d.optString("type"),
+                isActive = d.optBoolean("is_active"),
+                isRestricted = d.optBoolean("is_restricted")
+            )
         }
+    }
+
+    /**
+     * Fuzzy-matches spoken words against the device names Spotify actually
+     * reports, rather than guessing from hardcoded name endings. "shed"
+     * finds "Shed Sonos"; "kitchen" finds "Kitchen Speaker".
+     */
+    suspend fun findDevice(spoken: String): Device? {
+        val list = devices()
+        if (list.isEmpty()) return null
+
+        val q = Matcher.norm(spoken)
+        // "this phone", "here", "on me" all mean the handset in your hand
+        if (Regex("^(phone|handset|here)$").matches(q) ||
+            Regex("\\b(this (device|phone|one)|my phone|the phone|here|handset)\\b").containsMatchIn(q)) {
+            list.firstOrNull { it.isPhone }?.let { return it }
+        }
+        Matcher.best(spoken, list, floor = 0.40) { it.name }?.let { return it.item }
+        // last resort: a bare type word, e.g. "the speaker", "the tv"
+        return list.firstOrNull { Matcher.norm(it.type).isNotEmpty() && q.contains(Matcher.norm(it.type)) }
     }
 
     private suspend fun activeDeviceId(): String? {
@@ -210,10 +249,7 @@ object SpotifyClient {
         return pick.optString("id").takeIf { it.isNotEmpty() }
     }
 
-    private suspend fun deviceIdByName(name: String): String? {
-        val list = devices()
-        return Matcher.best(name, list, floor = 0.45) { it.second }?.item?.first
-    }
+    private suspend fun deviceIdByName(name: String): String? = findDevice(name)?.id
 
     // ---- resolving ------------------------------------------------------
 
@@ -309,8 +345,12 @@ object SpotifyClient {
     suspend fun shuffle(on: Boolean) = call("/me/player/shuffle?state=$on", "PUT").let {}
     suspend fun repeat(mode: String) = call("/me/player/repeat?state=$mode", "PUT").let {}
     suspend fun setVolume(pct: Int) = call("/me/player/volume?volume_percent=${pct.coerceIn(0, 100)}", "PUT").let {}
-    suspend fun transferTo(deviceId: String) {
-        call("/me/player", "PUT", JSONObject().put("device_ids", JSONArray().put(deviceId)).put("play", false))
+    /** Moves playback to another device, carrying the music with it if it was playing. */
+    suspend fun transferTo(deviceId: String, keepPlaying: Boolean) {
+        call(
+            "/me/player", "PUT",
+            JSONObject().put("device_ids", JSONArray().put(deviceId)).put("play", keepPlaying)
+        )
         Prefs.deviceId = deviceId
     }
 

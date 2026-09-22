@@ -155,19 +155,46 @@ object CommandRunner {
                     val np = SpotifyClient.nowPlaying()
                     val all = runCatching { SpotifyClient.devices() }.getOrDefault(emptyList())
                     val current = np?.device?.takeIf { it.isNotEmpty() }
-                    val others = all.map { it.second }.filter { it != current && it.isNotEmpty() }
+                    val others = all.map { it.name }.filter { it != current && it.isNotEmpty() }
 
                     val line = when {
                         current != null && others.isEmpty() -> "Playing on $current."
                         current != null -> "Playing on $current. Also available: ${others.joinToString(", ")}."
-                        all.isNotEmpty() -> "Nothing is playing. Available: ${all.joinToString(", ") { it.second }}."
+                        all.isNotEmpty() -> "Nothing is playing. Available: ${all.joinToString(", ") { it.name }}."
                         else -> "No Spotify devices are available. Open Spotify and press play once."
                     }
                     Bus.setStatus(line)
                     speak(line)
-                    Bus.setListing(all.joinToString("\n") { (_, n) ->
-                        if (n == current) "\u25B6 $n  (playing)" else "  $n"
+                    Bus.setListing(all.joinToString("\n") { d ->
+                        if (d.name == current) "\u25B6 ${d.name}  (playing)" else "  ${d.name}  (${d.type})"
                     })
+                }
+
+                CommandParser.Kind.SWITCH_DEVICE -> {
+                    val where = cmd.device.orEmpty()
+                    Bus.setStatus("Looking for \u201C$where\u201D\u2026")
+                    val target = SpotifyClient.findDevice(where)
+                    if (target == null) {
+                        val all = runCatching { SpotifyClient.devices() }.getOrDefault(emptyList())
+                        val msg = if (all.isEmpty())
+                            "No Spotify devices are available. Open Spotify on it and press play once."
+                        else
+                            "I could not find \u201C$where\u201D. Available: " +
+                                all.joinToString(", ") { it.name } + "."
+                        Bus.setStatus(msg)
+                        speak(msg)
+                        Bus.setListing(all.joinToString("\n") { "  ${it.name}  (${it.type})" })
+                    } else {
+                        // carry the music across only if something was actually playing
+                        val wasPlaying = runCatching { SpotifyClient.nowPlaying()?.isPlaying }
+                            .getOrNull() ?: false
+                        SpotifyClient.transferTo(target.id, keepPlaying = wasPlaying)
+                        val line = if (wasPlaying) "Moved to ${target.name}"
+                                   else "Switched to ${target.name}"
+                        Bus.setStatus(line)
+                        speak(line)
+                        Bus.setListing("")
+                    }
                 }
 
                 CommandParser.Kind.HELP -> {
@@ -181,7 +208,9 @@ object CommandRunner {
                         "what playlists do i have",
                         "whats my favourite songs",
                         "whats it playing on",
-                        "play my drive playlist on the kitchen speaker"
+                        "play my drive playlist on the kitchen speaker",
+                        "switch to the shed speaker",
+                        "what devices are there"
                     )
                     speak(
                         "You can say things like: " +

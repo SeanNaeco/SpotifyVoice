@@ -10,7 +10,7 @@ object CommandParser {
     enum class Kind {
         NOOP, PLAY, NEXT, PREVIOUS, PAUSE, RESUME, WHATS_PLAYING,
         SHUFFLE_ON, SHUFFLE_OFF, REPEAT, VOLUME, VOLUME_DELTA,
-        LIST_PLAYLISTS, TOP_TRACKS, WHAT_DEVICE, HELP, MORE
+        LIST_PLAYLISTS, TOP_TRACKS, WHAT_DEVICE, HELP, MORE, SWITCH_DEVICE
     }
 
     enum class TargetType { PLAYLIST, ALBUM, ARTIST, TRACK }
@@ -65,6 +65,24 @@ object CommandParser {
             Regex("^(where ?s|wheres|where is)\\s+(it|this|that|the music)\\s+playing\\b").containsMatchIn(t) ||
             Regex("^(coming from|coming out of)").containsMatchIn(t))
             return Command(Kind.WHAT_DEVICE)
+
+        // "switch to the shed speaker" - a device change with no content named.
+        // Checked here, before anything treats "switch" as a song title.
+        run {
+            val m = Regex("^(?:switch|change|move|transfer|send|cast|throw|shift)\\s+(?:it|this|music|playback|sound|audio|everything)?\\s*(?:to|over to|onto|on to|into)\\s+(.+)$").find(t)
+                ?: Regex("^play\\s+(?:on|through)\\s+(.+)$").find(t)
+                ?: Regex("^(?:output|audio|sound)\\s+(?:to|through)\\s+(.+)$").find(t)
+                ?: Regex("^(?:switch|change|move|send|cast|shift)\\s+(?:it|this|music|playback)?\\s*(here)$").find(t)
+            if (m != null) {
+                val where = m.groupValues[1].replace(Regex("^(the|my)\\s+"), "").trim()
+                // "move to the next song" is a transport command, not a device
+                if (where.isNotEmpty() &&
+                    !Regex("^(next|previous|last|another|other|shuffle|repeat|random|loop)\\b").containsMatchIn(where)
+                ) {
+                    return Command(Kind.SWITCH_DEVICE, device = where)
+                }
+            }
+        }
 
         if (Regex("^(what can i say|what can you do|what do you do|help|commands|what commands)\\b").containsMatchIn(t))
             return Command(Kind.HELP)
