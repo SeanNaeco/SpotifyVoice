@@ -143,6 +143,16 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+
+        // Long answers are spoken in part and printed here in full.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                Bus.listing.collect { text ->
+                    b.txtLog.text = text
+                    b.txtLog.visibility = if (text.isBlank()) View.GONE else View.VISIBLE
+                }
+            }
+        }
     }
 
     private fun refreshNowPlaying() {

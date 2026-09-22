@@ -9,7 +9,8 @@ object CommandParser {
 
     enum class Kind {
         NOOP, PLAY, NEXT, PREVIOUS, PAUSE, RESUME, WHATS_PLAYING,
-        SHUFFLE_ON, SHUFFLE_OFF, REPEAT, VOLUME, VOLUME_DELTA
+        SHUFFLE_ON, SHUFFLE_OFF, REPEAT, VOLUME, VOLUME_DELTA,
+        LIST_PLAYLISTS, TOP_TRACKS, WHAT_DEVICE, HELP, MORE
     }
 
     enum class TargetType { PLAYLIST, ALBUM, ARTIST, TRACK }
@@ -42,6 +43,34 @@ object CommandParser {
             .replace(Regex("\\b(on|in|from|with|using)\\s+spotify\\b"), "")
             .replace(Regex("\\bfor me\\b"), "")
             .replace(Regex("\\s+"), " ").trim()
+
+        // ---- questions -------------------------------------------------
+        // Checked before transport on purpose: "what s it playing on" also
+        // matches the WHATS_PLAYING pattern, and "more" must not fall through
+        // to a play command.
+        if (Regex("^(what|which)\\s+(playlists|lists)\\b").containsMatchIn(t) ||
+            Regex("^(list|name|read|tell me)\\s+(my\\s+)?(playlists|lists)\\b").containsMatchIn(t) ||
+            Regex("^how many playlists\\b").containsMatchIn(t) ||
+            Regex("^my playlists$").matches(t))
+            return Command(Kind.LIST_PLAYLISTS)
+
+        if (Regex("^(what ?s|whats|what is|what are)\\s+my\\s+(favourite|favorite|top|most played|best)\\b").containsMatchIn(t) ||
+            Regex("^my\\s+(favourite|favorite|top)\\s+(song|songs|track|tracks|music|artist|artists)\\b").containsMatchIn(t) ||
+            Regex("^what am i (into|listening to|playing a lot)\\b").containsMatchIn(t) ||
+            Regex("^(top|favourite|favorite)\\s+(songs|tracks)$").matches(t))
+            return Command(Kind.TOP_TRACKS)
+
+        if (Regex("^(what|which)\\s+(device|speaker)").containsMatchIn(t) ||
+            Regex("playing on$").containsMatchIn(t) ||
+            Regex("^(where ?s|wheres|where is)\\s+(it|this|that|the music)\\s+playing\\b").containsMatchIn(t) ||
+            Regex("^(coming from|coming out of)").containsMatchIn(t))
+            return Command(Kind.WHAT_DEVICE)
+
+        if (Regex("^(what can i say|what can you do|what do you do|help|commands|what commands)\\b").containsMatchIn(t))
+            return Command(Kind.HELP)
+
+        if (Regex("^(more|read more|more please|next few|rest of them|the rest|more of them)$").matches(t))
+            return Command(Kind.MORE)
 
         // ---- transport -------------------------------------------------
         if (Regex("^(next|skip|next (track|song)|skip (this|it|track|song))\\b").containsMatchIn(t))

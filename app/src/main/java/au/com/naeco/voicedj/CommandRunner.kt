@@ -13,6 +13,45 @@ object CommandRunner {
     private var tts: TextToSpeech? = null
     private var ttsReady = false
 
+    /** What's left of the last long answer, so "more" can continue it. */
+    private var pending: List<String> = emptyList()
+
+    private const val SPOKEN_BATCH = 5
+
+    /**
+     * Playlist names are full of emoji and punctuation that a speech engine
+     * reads out literally ("fire emoji deep house"). Strip those for speech
+     * only - the on-screen list keeps the real name.
+     */
+    private fun speakable(s: String): String =
+        s.replace(Regex("[\\p{So}\\p{Cn}]"), " ")
+            .replace(Regex("[/_|]"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+
+    /** Speaks a count plus the first few, and shows the whole lot on screen. */
+    private fun announceList(noun: String, items: List<String>, firstBatch: Boolean = true) {
+        if (items.isEmpty()) {
+            Bus.setStatus("No $noun found")
+            speak("I could not find any $noun")
+            return
+        }
+
+        val batch = items.take(SPOKEN_BATCH)
+        pending = items.drop(SPOKEN_BATCH)
+
+        val head = if (firstBatch) "You have ${items.size} $noun. " else ""
+        val tail = if (pending.isNotEmpty()) " Say more to hear the rest." else ""
+        speak(head + batch.joinToString(", ") { speakable(it) } + "." + tail)
+
+        Bus.setStatus(
+            if (firstBatch) "${items.size} $noun" else "${pending.size} more to go"
+        )
+        if (firstBatch) {
+            Bus.setListing(items.mapIndexed { i, n -> "${i + 1}. $n" }.joinToString("\n"))
+        }
+    }
+
     fun initTts(ctx: Context) {
         if (tts != null) return
         tts = TextToSpeech(ctx.applicationContext) { status ->
@@ -30,6 +69,14 @@ object CommandRunner {
         runCatching { tts?.shutdown() }
         tts = null
         ttsReady = false
+    }
+
+    /** Cached library, re-synced if it is missing or more than six hours old. */
+    private suspend fun freshLibrary(): Library {
+        val cached = SpotifyClient.cachedLibrary()
+        val stale = System.currentTimeMillis() - Prefs.librarySyncedAt > 6 * 3600_000L
+        if (cached.playlists.isNotEmpty() && !stale) return cached
+        return runCatching { SpotifyClient.syncLibrary() }.getOrDefault(cached)
     }
 
     suspend fun run(ctx: Context, raw: String) {
@@ -81,16 +128,86 @@ object CommandRunner {
                     }
                 }
 
+                CommandParser.Kind.LIST_PLAYLISTS -> {
+                    val lib = freshLibrary()
+                    announceList("playlists", lib.playlists.map { it.name })
+                }
+
+                CommandParser.Kind.TOP_TRACKS -> {
+                    Bus.setStatus("Checking what you have been playing\u2026")
+                    val top = SpotifyClient.topTracks(20)
+                    if (top.isEmpty()) {
+                        Bus.setStatus("Spotify has no recent favourites for you yet")
+                        speak("Spotify does not have enough recent listening to tell.")
+                    } else {
+                        pending = top.drop(SPOKEN_BATCH)
+                        speak(
+                            "Lately you have been playing " +
+                                top.take(SPOKEN_BATCH).joinToString(", ") { speakable(it) } + "." +
+                                if (pending.isNotEmpty()) " Say more to hear the rest." else ""
+                        )
+                        Bus.setStatus("Your top ${top.size} over the last few weeks")
+                        Bus.setListing(top.mapIndexed { i, n -> "${i + 1}. $n" }.joinToString("\n"))
+                    }
+                }
+
+                CommandParser.Kind.WHAT_DEVICE -> {
+                    val np = SpotifyClient.nowPlaying()
+                    val all = runCatching { SpotifyClient.devices() }.getOrDefault(emptyList())
+                    val current = np?.device?.takeIf { it.isNotEmpty() }
+                    val others = all.map { it.second }.filter { it != current && it.isNotEmpty() }
+
+                    val line = when {
+                        current != null && others.isEmpty() -> "Playing on $current."
+                        current != null -> "Playing on $current. Also available: ${others.joinToString(", ")}."
+                        all.isNotEmpty() -> "Nothing is playing. Available: ${all.joinToString(", ") { it.second }}."
+                        else -> "No Spotify devices are available. Open Spotify and press play once."
+                    }
+                    Bus.setStatus(line)
+                    speak(line)
+                    Bus.setListing(all.joinToString("\n") { (_, n) ->
+                        if (n == current) "\u25B6 $n  (playing)" else "  $n"
+                    })
+                }
+
+                CommandParser.Kind.HELP -> {
+                    val examples = listOf(
+                        "play my deep house playlist",
+                        "shuffle my shed work playlist",
+                        "play thunderstruck by acdc",
+                        "next, back, pause, resume",
+                        "volume 40, louder, turn it down",
+                        "whats playing",
+                        "what playlists do i have",
+                        "whats my favourite songs",
+                        "whats it playing on",
+                        "play my drive playlist on the kitchen speaker"
+                    )
+                    speak(
+                        "You can say things like: " +
+                            examples.take(4).joinToString("; ") +
+                            ". The full list is on screen."
+                    )
+                    Bus.setStatus("${examples.size} things you can say")
+                    Bus.setListing(examples.joinToString("\n") { "\u2022 $it" })
+                }
+
+                CommandParser.Kind.MORE -> {
+                    if (pending.isEmpty()) {
+                        Bus.setStatus("Nothing more to read out")
+                        speak("That was all of them.")
+                    } else {
+                        announceList("", pending, firstBatch = false)
+                    }
+                }
+
                 CommandParser.Kind.PLAY -> {
+                    // a fresh play command retires any list still on screen
+                    Bus.setListing("")
+                    pending = emptyList()
                     Bus.setStatus("Looking for “${cmd.query}”…")
 
-                    var lib = SpotifyClient.cachedLibrary()
-                    if (lib.playlists.isEmpty() ||
-                        System.currentTimeMillis() - Prefs.librarySyncedAt > 6 * 3600_000L
-                    ) {
-                        lib = runCatching { SpotifyClient.syncLibrary() }.getOrDefault(lib)
-                    }
-
+                    val lib = freshLibrary()
                     val found = SpotifyClient.resolve(cmd, lib)
                     if (found == null) {
                         Bus.setStatus("Couldn't find “${cmd.query}”")

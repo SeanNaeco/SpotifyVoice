@@ -31,7 +31,8 @@ object SpotifyAuth {
         "playlist-read-private",
         "playlist-read-collaborative",
         "user-library-read",
-        "user-follow-read"
+        "user-follow-read",
+        "user-top-read"
     ).joinToString(" ")
 
     private val http = OkHttpClient()

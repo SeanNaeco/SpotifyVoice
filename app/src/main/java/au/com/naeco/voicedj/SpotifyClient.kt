@@ -317,6 +317,23 @@ object SpotifyClient {
     suspend fun currentVolume(): Int =
         getJson("/me/player")?.optJSONObject("device")?.optInt("volume_percent", 50) ?: 50
 
+    /**
+     * "Favourites at the moment" = short_term, which Spotify defines as roughly
+     * the last four weeks. Needs the user-top-read scope.
+     */
+    suspend fun topTracks(limit: Int = 20): List<String> {
+        val j = getJson("/me/top/tracks?time_range=short_term&limit=${limit.coerceIn(1, 50)}")
+            ?: return emptyList()
+        val items = j.optJSONArray("items") ?: return emptyList()
+        return (0 until items.length()).mapNotNull { i ->
+            val t = items.optJSONObject(i) ?: return@mapNotNull null
+            val names = t.optJSONArray("artists")?.let { a ->
+                (0 until a.length()).mapNotNull { a.optJSONObject(it)?.optString("name") }
+            }.orEmpty()
+            "${t.optString("name")} by ${names.joinToString(", ")}"
+        }
+    }
+
     data class NowPlaying(val title: String, val artists: String, val device: String, val isPlaying: Boolean)
 
     suspend fun nowPlaying(): NowPlaying? {
