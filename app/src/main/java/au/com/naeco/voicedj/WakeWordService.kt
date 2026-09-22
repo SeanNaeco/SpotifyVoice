@@ -45,6 +45,8 @@ class WakeWordService : LifecycleService() {
     private val main = Handler(Looper.getMainLooper())
     private var duckedFrom: Int? = null
     private var stopping = false
+    private var lastPartial = ""
+    private var lastWakeAt = 0L
 
     override fun onCreate() {
         super.onCreate()
@@ -99,20 +101,28 @@ class WakeWordService : LifecycleService() {
 
         val m = model ?: return
         try {
-            // Grammar-constrained: the recogniser will only ever return the
-            // wake phrase or "[unk]", which keeps it fast and battery-light.
-            val rec = Recognizer(m, SAMPLE_RATE, WakeWords.grammarJson())
+            // Free-form, NOT grammar-constrained. A grammar of just the wake
+            // phrase plus "[unk]" sounds efficient but forces every stray
+            // noise onto the only real phrase it knows, which made the wake
+            // word fire constantly. Free-form lets noise be transcribed as
+            // noise.
+            val rec = Recognizer(m, SAMPLE_RATE)
             val svc = SpeechService(rec, SAMPLE_RATE)
             vosk = svc
 
             svc.startListening(object : org.vosk.android.RecognitionListener {
                 override fun onPartialResult(hypothesis: String?) {
                     val text = JSONObject(hypothesis ?: "{}").optString("partial")
-                    if (text.isNotBlank() && WakeWords.matches(text)) onWake(text)
+                    // A single utterance produces many partials that each still
+                    // contain the phrase, so the same text must not fire twice.
+                    if (text.isBlank() || text == lastPartial) return
+                    lastPartial = text
+                    if (WakeWords.matches(text)) onWake(text)
                 }
 
                 override fun onResult(hypothesis: String?) {
                     val text = JSONObject(hypothesis ?: "{}").optString("text")
+                    lastPartial = ""
                     if (text.isNotBlank() && WakeWords.matches(text)) onWake(text)
                 }
 
@@ -140,6 +150,12 @@ class WakeWordService : LifecycleService() {
     private fun onWake(heard: String) {
         main.post {
             if (stopping || Bus.phase.value == Bus.Phase.CAPTURING) return@post
+
+            // Without this, tail-end audio from the last capture re-triggers
+            // the wake immediately and the app beeps in a loop.
+            val now = System.currentTimeMillis()
+            if (now - lastWakeAt < WAKE_COOLDOWN_MS) return@post
+            lastWakeAt = now
 
             // If the whole command came in one breath — "hey dj play my shed
             // work playlist" — skip the second stage entirely.
@@ -250,8 +266,10 @@ class WakeWordService : LifecycleService() {
         main.postDelayed({
             releaseCommandRecognizer()
             unduckSpotify()
+            lastPartial = ""
+            lastWakeAt = System.currentTimeMillis()   // start the cooldown here too
             if (!stopping) startWakeStage()
-        }, 300)
+        }, 600)
     }
 
     private fun releaseCommandRecognizer() {
@@ -338,6 +356,7 @@ class WakeWordService : LifecycleService() {
     companion object {
         const val ACTION_STOP = "au.com.naeco.voicedj.STOP"
         private const val SAMPLE_RATE = 16000.0f
+        private const val WAKE_COOLDOWN_MS = 3000L
 
         fun start(ctx: Context) {
             val i = Intent(ctx, WakeWordService::class.java)
