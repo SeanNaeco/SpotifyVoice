@@ -9,4 +9,9 @@
         <item name="android:statusBarColor" tools:targetApi="l">@color/bg</item>
         <item name="android:navigationBarColor" tools:targetApi="l">@color/bg</item>
     </style>
+
+    <!-- For AuthRedirectActivity: it flashes into existence, forwards the
+         OAuth code and finishes. Not an AppCompat theme, which is fine
+         because that activity is a plain Activity. -->
+    <style name="Theme.VoiceDJ.Transparent" parent="android:Theme.Translucent.NoTitleBar" />
 </resources>

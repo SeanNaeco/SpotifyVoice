@@ -27,6 +27,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var b: ActivityMainBinding
     private var tapRecognizer: SpeechRecognizer? = null
+    private var lastHandledCode: String? = null
 
     private val micPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -70,6 +71,13 @@ class MainActivity : AppCompatActivity() {
         }
 
         observeBus()
+        handleAuthIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleAuthIntent(intent)
     }
 
     override fun onResume() {
@@ -304,7 +312,50 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    // ---- finishing Spotify sign-in --------------------------------------
+
+    /**
+     * AuthRedirectActivity hands the authorization code here rather than
+     * exchanging it itself. This activity sticks around for the whole network
+     * call, so the coroutine can't be cancelled halfway -- which is what made
+     * sign-in loop before.
+     */
+    private fun handleAuthIntent(intent: Intent?) {
+        intent?.getStringExtra(EXTRA_ERROR)?.let { err ->
+            intent.removeExtra(EXTRA_ERROR)
+            Bus.setStatus("Spotify refused sign-in: $err")
+            toast("Spotify refused sign-in: $err")
+            return
+        }
+
+        val code = intent?.getStringExtra(EXTRA_CODE) ?: return
+        intent.removeExtra(EXTRA_CODE)
+
+        // An authorization code is single-use; spending it twice fails.
+        if (code == lastHandledCode) return
+        lastHandledCode = code
+
+        Bus.setStatus("Finishing sign-in\u2026")
+        lifecycleScope.launch {
+            SpotifyAuth.exchangeCode(code)
+                .onSuccess {
+                    Bus.setStatus("Spotify connected")
+                    renderAuthState()
+                    refreshNowPlaying()
+                }
+                .onFailure { e ->
+                    Bus.setStatus("Sign-in failed: ${e.message}")
+                    toast("Sign-in failed: ${e.message}")
+                }
+        }
+    }
+
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_LONG).show()
+
+    companion object {
+        const val EXTRA_CODE = "spotify_code"
+        const val EXTRA_ERROR = "spotify_error"
+    }
 
     override fun onDestroy() {
         tapRecognizer?.destroy()

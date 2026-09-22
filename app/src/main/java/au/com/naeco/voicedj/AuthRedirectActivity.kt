@@ -1,54 +1,43 @@
 package au.com.naeco.voicedj
 
+import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
-import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.launch
 
 /**
- * Catches au.com.naeco.voicedj://callback?code=... from the Custom Tab,
- * swaps the code for tokens, then bounces back into the app.
+ * Catches au.com.naeco.voicedj://callback?code=... from the Custom Tab and
+ * hands the code straight to MainActivity, then gets out of the way.
+ *
+ * Two deliberate choices here, both learned the hard way:
+ *
+ *  - It does NO network work. An earlier version exchanged the token in this
+ *    activity's lifecycleScope while the activity was finishing, so the
+ *    coroutine was cancelled mid-flight, no token was ever stored, and the
+ *    sign-in appeared to loop forever.
+ *  - It is a plain Activity, not an AppCompatActivity. AppCompat demands a
+ *    Theme.AppCompat descendant and throws IllegalStateException on anything
+ *    else, which is what crashed it on the way back from Spotify.
  */
-class AuthRedirectActivity : AppCompatActivity() {
+class AuthRedirectActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        handle(intent)
+        forward(intent)
     }
 
-    override fun onNewIntent(intent: Intent) {
+    override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
-        handle(intent)
+        forward(intent)
     }
 
-    private fun handle(intent: Intent?) {
-        val uri = intent?.data
-        val error = uri?.getQueryParameter("error")
-        val code = uri?.getQueryParameter("code")
-
-        when {
-            error != null -> {
-                toast("Spotify said: $error")
-                finishToMain()
-            }
-            code != null -> lifecycleScope.launch {
-                SpotifyAuth.exchangeCode(code)
-                    .onFailure { toast("Sign-in failed: ${it.message}") }
-                    .onSuccess { toast("Spotify connected") }
-                finishToMain()
-            }
-            else -> finishToMain()
-        }
-    }
-
-    private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_LONG).show()
-
-    private fun finishToMain() {
-        startActivity(Intent(this, MainActivity::class.java).apply {
+    private fun forward(from: Intent?) {
+        val uri = from?.data
+        val next = Intent(this, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-        })
+            uri?.getQueryParameter("code")?.let { putExtra(MainActivity.EXTRA_CODE, it) }
+            uri?.getQueryParameter("error")?.let { putExtra(MainActivity.EXTRA_ERROR, it) }
+        }
+        startActivity(next)
         finish()
     }
 }

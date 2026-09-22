@@ -53,8 +53,8 @@
             android:name=".AuthRedirectActivity"
             android:exported="true"
             android:launchMode="singleTask"
-            android:noHistory="true"
-            android:theme="@android:style/Theme.NoDisplay">
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.VoiceDJ.Transparent">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
