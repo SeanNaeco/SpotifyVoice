@@ -102,6 +102,21 @@ object Prefs {
         get() = sp.getString("wakePhrase", WakeWords.DEFAULT_PHRASE) ?: WakeWords.DEFAULT_PHRASE
         set(v) = sp.edit().putString("wakePhrase", v).apply()
 
+    /**
+     * true  = grammar mode: Vosk is told it only knows the wake phrase, which
+     *         makes it far more willing to hear it (high recall).
+     * false = free-form: Vosk transcribes all of English, which is much
+     *         harder and is what made the phrase need shouting.
+     */
+    var wakeSensitive: Boolean
+        get() = sp.getBoolean("wakeSensitive", true)
+        set(v) = sp.edit().putBoolean("wakeSensitive", v).apply()
+
+    /** Show every raw recogniser output on screen, for diagnosing misses. */
+    var showDiagnostics: Boolean
+        get() = sp.getBoolean("diag", true)
+        set(v) = sp.edit().putBoolean("diag", v).apply()
+
     /** Duck Spotify while capturing a command so the music doesn't drown it out. */
     var duckWhileListening: Boolean
         get() = sp.getBoolean("duck", true)

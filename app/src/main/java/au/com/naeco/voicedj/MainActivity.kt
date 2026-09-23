@@ -144,6 +144,19 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // What the wake recogniser is actually hearing, verbatim. A tick marks
+        // a line that matched the wake phrase; a dot marks one that did not.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                Bus.wakeLog.collect { text ->
+                    val show = text.isNotBlank() && Prefs.showDiagnostics
+                    b.txtDiag.text = text
+                    b.txtDiag.visibility = if (show) View.VISIBLE else View.GONE
+                    b.txtDiagHead.visibility = if (show) View.VISIBLE else View.GONE
+                }
+            }
+        }
+
         // Long answers are spoken in part and printed here in full.
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -301,7 +314,31 @@ class MainActivity : AppCompatActivity() {
         AlertDialog.Builder(this)
             .setTitle("Settings")
             .setMessage("$consentLine\nWake phrase: \u201C${Prefs.wakePhrase}\u201D")
-            .setPositiveButton("Change wake phrase") { _, _ -> promptForWakePhrase() }
+            .setPositiveButton("Wake settings") { _, _ ->
+                val opts = arrayOf(
+                    "Change wake phrase",
+                    if (Prefs.wakeSensitive) "Sensitivity: high (recommended)" else "Sensitivity: strict",
+                    if (Prefs.showDiagnostics) "Hide what it is hearing" else "Show what it is hearing"
+                )
+                AlertDialog.Builder(this)
+                    .setItems(opts) { _, which ->
+                        when (which) {
+                            0 -> promptForWakePhrase()
+                            1 -> {
+                                Prefs.wakeSensitive = !Prefs.wakeSensitive
+                                toast(if (Prefs.wakeSensitive) "High sensitivity" else "Strict")
+                                if (Bus.serviceRunning.value) {
+                                    WakeWordService.stop(this); WakeWordService.start(this)
+                                }
+                            }
+                            2 -> {
+                                Prefs.showDiagnostics = !Prefs.showDiagnostics
+                                if (!Prefs.showDiagnostics) Bus.clearWakeLog()
+                            }
+                        }
+                    }
+                    .show()
+            }
             .setNeutralButton(
                 if (Prefs.mayListenContinuously) "Withdraw consent" else "Review consent"
             ) { _, _ ->

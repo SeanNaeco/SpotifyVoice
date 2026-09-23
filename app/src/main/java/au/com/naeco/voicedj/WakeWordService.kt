@@ -101,29 +101,36 @@ class WakeWordService : LifecycleService() {
 
         val m = model ?: return
         try {
-            // Free-form, NOT grammar-constrained. A grammar of just the wake
-            // phrase plus "[unk]" sounds efficient but forces every stray
-            // noise onto the only real phrase it knows, which made the wake
-            // word fire constantly. Free-form lets noise be transcribed as
-            // noise.
-            val rec = Recognizer(m, SAMPLE_RATE)
+            // Sensitive mode hands Vosk a grammar of just the wake phrase, so
+            // it strains to hear it. That is safe here only because matches()
+            // now insists on every distinctive word - the original bug was the
+            // fuzzy threshold sitting on top of the grammar, not the grammar.
+            // Free-form makes Vosk transcribe all of English, which is a far
+            // harder job and is why the phrase needed shouting.
+            val rec = if (Prefs.wakeSensitive) Recognizer(m, SAMPLE_RATE, WakeWords.grammarJson())
+                      else Recognizer(m, SAMPLE_RATE)
             val svc = SpeechService(rec, SAMPLE_RATE)
             vosk = svc
 
             svc.startListening(object : org.vosk.android.RecognitionListener {
                 override fun onPartialResult(hypothesis: String?) {
                     val text = JSONObject(hypothesis ?: "{}").optString("partial")
-                    // A single utterance produces many partials that each still
-                    // contain the phrase, so the same text must not fire twice.
+                    // One utterance emits many partials that all still contain
+                    // the phrase, so the same text must not fire twice.
                     if (text.isBlank() || text == lastPartial) return
                     lastPartial = text
-                    if (WakeWords.matches(text)) onWake(text)
+                    val hit = WakeWords.matches(text)
+                    if (Prefs.showDiagnostics) Bus.noteHeard(text, hit)
+                    if (hit) onWake(text)
                 }
 
                 override fun onResult(hypothesis: String?) {
                     val text = JSONObject(hypothesis ?: "{}").optString("text")
                     lastPartial = ""
-                    if (text.isNotBlank() && WakeWords.matches(text)) onWake(text)
+                    if (text.isBlank()) return
+                    val hit = WakeWords.matches(text)
+                    if (Prefs.showDiagnostics) Bus.noteHeard(text, hit)
+                    if (hit) onWake(text)
                 }
 
                 override fun onFinalResult(hypothesis: String?) {}
@@ -269,7 +276,7 @@ class WakeWordService : LifecycleService() {
             lastPartial = ""
             lastWakeAt = System.currentTimeMillis()   // start the cooldown here too
             if (!stopping) startWakeStage()
-        }, 600)
+        }, 400)
     }
 
     private fun releaseCommandRecognizer() {
@@ -356,7 +363,7 @@ class WakeWordService : LifecycleService() {
     companion object {
         const val ACTION_STOP = "au.com.naeco.voicedj.STOP"
         private const val SAMPLE_RATE = 16000.0f
-        private const val WAKE_COOLDOWN_MS = 3000L
+        private const val WAKE_COOLDOWN_MS = 1200L
 
         fun start(ctx: Context) {
             val i = Intent(ctx, WakeWordService::class.java)

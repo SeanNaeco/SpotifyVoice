@@ -62,6 +62,17 @@
                 android:layout_height="wrap_content" android:text="Tap to talk once"
                 android:background="@drawable/bg_button" android:textColor="@color/text"
                 android:layout_marginTop="8dp"/>
+
+            <TextView android:id="@+id/txtDiagHead" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:text="WHAT IT IS HEARING"
+                android:textSize="11sp" android:textColor="@color/muted"
+                android:letterSpacing="0.09" android:layout_marginTop="18dp"
+                android:visibility="gone"/>
+            <TextView android:id="@+id/txtDiag" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:textSize="12.5sp"
+                android:textColor="@color/muted" android:fontFamily="monospace"
+                android:lineSpacingMultiplier="1.25" android:layout_marginTop="4dp"
+                android:visibility="gone"/>
         </LinearLayout>
 
         <!-- now playing -->

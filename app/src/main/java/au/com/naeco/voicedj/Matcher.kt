@@ -59,6 +59,23 @@ object Matcher {
         return 0.8 * recall + 0.2 * precision
     }
 
+    /** Edit distance, used to forgive how recognisers mangle short words. */
+    fun levenshtein(a: String, b: String): Int {
+        if (a == b) return 0
+        if (a.isEmpty() || b.isEmpty()) return maxOf(a.length, b.length)
+        var prev = IntArray(b.length + 1) { it }
+        for (i in 1..a.length) {
+            val cur = IntArray(b.length + 1)
+            cur[0] = i
+            for (j in 1..b.length) {
+                val sub = prev[j - 1] + if (a[i - 1] == b[j - 1]) 0 else 1
+                cur[j] = minOf(prev[j] + 1, cur[j - 1] + 1, sub)
+            }
+            prev = cur
+        }
+        return prev[b.length]
+    }
+
     data class Hit<T>(val item: T, val score: Double)
 
     /**
